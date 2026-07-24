@@ -6,8 +6,6 @@
     <title>AI 배경 제거 (누끼따기)</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- @imgly/background-removal library -->
-    <script src="https://unpkg.com/@imgly/background-removal@1.4.3/dist/imgly-background-removal.umd.js"></script>
     
     <style>
         /* 투명한 배경을 잘 보여주기 위한 체크무늬 패턴 */
@@ -34,8 +32,8 @@
         
         <!-- Header -->
         <div class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">AI 배경 제거기</h1>
-            <p class="text-lg text-gray-600">이미지를 업로드하면 AI가 자동으로 배경을 지워 투명하게 만들어 줍니다.<br><span class="text-sm text-gray-500">(모든 처리는 브라우저 내부에서 진행되어 안전합니다)</span></p>
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-3 tracking-tight">고품질 AI 배경 제거기</h1>
+            <p class="text-lg text-gray-600">제품 손실을 최소화하는 정교한 모델이 적용되었습니다.<br><span class="text-sm text-gray-500">(모든 처리는 브라우저 내부에서 진행되어 안전합니다)</span></p>
         </div>
 
         <!-- Main Content Area -->
@@ -55,9 +53,9 @@
             <!-- Loading State -->
             <div id="loadingState" class="hidden flex-col items-center justify-center py-16">
                 <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-500 mb-6"></div>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">배경을 제거하는 중입니다...</h3>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">고품질 배경 제거를 진행 중입니다...</h3>
                 <p id="progressText" class="text-gray-600 text-center max-w-md">
-                    최초 실행 시 AI 모델을 다운로드하므로 약간의 시간이 소요될 수 있습니다. (약 30~50MB)
+                    최초 실행 시 고품질 AI 모델(medium)을 다운로드하므로 약간의 시간이 소요될 수 있습니다.
                 </p>
                 <!-- Progress Bar Container -->
                 <div class="w-full max-w-md bg-gray-200 rounded-full h-2.5 mt-4 overflow-hidden">
@@ -123,143 +121,142 @@
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // DOM Elements
-            const uploadZone = document.getElementById('uploadZone');
-            const fileInput = document.getElementById('fileInput');
-            const loadingState = document.getElementById('loadingState');
-            const resultZone = document.getElementById('resultZone');
-            const errorState = document.getElementById('errorState');
-            const errorMessage = document.getElementById('errorMessage');
-            const originalImg = document.getElementById('originalImg');
-            const resultImg = document.getElementById('resultImg');
-            const downloadBtn = document.getElementById('downloadBtn');
-            const newUploadBtn = document.getElementById('newUploadBtn');
-            const progressText = document.getElementById('progressText');
-            const progressBar = document.getElementById('progressBar');
+    <script type="module">
+        // 최신 ES Module 방식으로 imgly 라이브러리를 안전하게 불러옵니다.
+        import imglyRemoveBackground from 'https://esm.sh/@imgly/background-removal@1.4.3';
 
-            let currentProcessedObjectURL = null;
-            let currentOriginalObjectURL = null;
+        // DOM Elements
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const loadingState = document.getElementById('loadingState');
+        const resultZone = document.getElementById('resultZone');
+        const errorState = document.getElementById('errorState');
+        const errorMessage = document.getElementById('errorMessage');
+        const originalImg = document.getElementById('originalImg');
+        const resultImg = document.getElementById('resultImg');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newUploadBtn = document.getElementById('newUploadBtn');
+        const progressText = document.getElementById('progressText');
+        const progressBar = document.getElementById('progressBar');
 
-            // --- Event Listeners for Drag and Drop ---
-            uploadZone.addEventListener('click', () => fileInput.click());
+        let currentProcessedObjectURL = null;
+        let currentOriginalObjectURL = null;
 
-            uploadZone.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadZone.classList.add('drag-active');
-            });
+        uploadZone.addEventListener('click', () => fileInput.click());
 
-            uploadZone.addEventListener('dragleave', () => {
-                uploadZone.classList.remove('drag-active');
-            });
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-active');
+        });
 
-            uploadZone.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadZone.classList.remove('drag-active');
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                    handleFile(e.dataTransfer.files[0]);
-                }
-            });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-active');
+        });
 
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                    handleFile(e.target.files[0]);
-                }
-            });
-
-            newUploadBtn.addEventListener('click', () => {
-                resetUI();
-            });
-
-            // --- Core Logic ---
-            function resetUI() {
-                uploadZone.classList.remove('hidden');
-                resultZone.classList.add('hidden');
-                errorState.classList.add('hidden');
-                loadingState.classList.add('hidden');
-                fileInput.value = ''; // Reset input
-                
-                // Cleanup Object URLs to free memory
-                if (currentProcessedObjectURL) URL.revokeObjectURL(currentProcessedObjectURL);
-                if (currentOriginalObjectURL) URL.revokeObjectURL(currentOriginalObjectURL);
-            }
-
-            async function handleFile(file) {
-                // Validate file type
-                if (!file.type.startsWith('image/')) {
-                    showError('올바른 이미지 파일을 업로드해주세요. (JPG, PNG 등)');
-                    return;
-                }
-
-                // UI Transitions
-                uploadZone.classList.add('hidden');
-                errorState.classList.add('hidden');
-                resultZone.classList.add('hidden');
-                loadingState.classList.remove('hidden');
-                
-                progressBar.style.width = '0%';
-                progressText.textContent = 'AI 모델을 준비 중입니다...';
-
-                try {
-                    // Set Original Image Preview
-                    currentOriginalObjectURL = URL.createObjectURL(file);
-                    originalImg.src = currentOriginalObjectURL;
-
-                    // Configuration for @imgly/background-removal
-                    const config = {
-                        publicPath: 'https://unpkg.com/@imgly/background-removal@1.4.3/dist/', // WASM 및 ONNX 모델 경로
-                        progress: (key, current, total) => {
-                            if (total) {
-                                const percent = Math.round((current / total) * 100);
-                                progressBar.style.width = `${percent}%`;
-                                
-                                if (key.includes('fetch')) {
-                                    progressText.textContent = `AI 모델 다운로드 중... (${percent}%)`;
-                                } else if (key.includes('compute')) {
-                                    progressText.textContent = `이미지 분석 및 배경 제거 중... (${percent}%)`;
-                                } else {
-                                    progressText.textContent = `처리 중... (${percent}%)`;
-                                }
-                            }
-                        }
-                    };
-
-                    // Run the AI Background Removal (this function is provided by the UMD script)
-                    const imageBlob = await imglyRemoveBackground(file, config);
-
-                    // Create URL for the result and set it
-                    currentProcessedObjectURL = URL.createObjectURL(imageBlob);
-                    resultImg.src = currentProcessedObjectURL;
-
-                    // Setup Download Button
-                    downloadBtn.onclick = () => {
-                        const originalName = file.name.replace(/\.[^/.]+$/, ""); // 확장자 제거
-                        const a = document.createElement('a');
-                        a.href = currentProcessedObjectURL;
-                        a.download = `${originalName}_nukki.png`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    };
-
-                    // Show Results
-                    loadingState.classList.add('hidden');
-                    resultZone.classList.remove('hidden');
-
-                } catch (error) {
-                    console.error("Background removal error:", error);
-                    loadingState.classList.add('hidden');
-                    uploadZone.classList.remove('hidden');
-                    showError(`이미지 처리 중 문제가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
-                }
-            }
-
-            function showError(message) {
-                errorMessage.textContent = message;
-                errorState.classList.remove('hidden');
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-active');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
             }
         });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        newUploadBtn.addEventListener('click', () => {
+            resetUI();
+        });
+
+        function resetUI() {
+            uploadZone.classList.remove('hidden');
+            resultZone.classList.add('hidden');
+            errorState.classList.add('hidden');
+            loadingState.classList.add('hidden');
+            fileInput.value = ''; // Reset input
+            
+            // 메모리 누수 방지를 위한 Object URL 해제
+            if (currentProcessedObjectURL) URL.revokeObjectURL(currentProcessedObjectURL);
+            if (currentOriginalObjectURL) URL.revokeObjectURL(currentOriginalObjectURL);
+        }
+
+        async function handleFile(file) {
+            // 파일 타입 검증
+            if (!file.type.startsWith('image/')) {
+                showError('올바른 이미지 파일을 업로드해주세요. (JPG, PNG 등)');
+                return;
+            }
+
+            // UI 상태 변경: 로딩 화면 표시
+            uploadZone.classList.add('hidden');
+            errorState.classList.add('hidden');
+            resultZone.classList.add('hidden');
+            loadingState.classList.remove('hidden');
+            
+            progressBar.style.width = '0%';
+            progressText.textContent = '고품질 AI 모델을 준비 중입니다... (최초 1회 시간이 소요됩니다)';
+
+            try {
+                // 원본 이미지 미리보기 설정
+                currentOriginalObjectURL = URL.createObjectURL(file);
+                originalImg.src = currentOriginalObjectURL;
+
+                // 중요: 모델 경로 설정 및 고품질(medium) 모델 지정
+                const config = {
+                    publicPath: 'https://staticimgly.com/@imgly/background-removal-data/1.4.3/dist/',
+                    model: 'medium', // 고품질 모델 설정 ('small' | 'medium')
+                    progress: (key, current, total) => {
+                        if (total) {
+                            const percent = Math.round((current / total) * 100);
+                            progressBar.style.width = `${percent}%`;
+                            
+                            if (key.includes('fetch')) {
+                                progressText.textContent = `고품질 AI 모델 다운로드 중... (${percent}%)`;
+                            } else if (key.includes('compute')) {
+                                progressText.textContent = `이미지 분석 및 정교한 배경 제거 중... (${percent}%)`;
+                            } else {
+                                progressText.textContent = `처리 중... (${percent}%)`;
+                            }
+                        }
+                    }
+                };
+
+                // 불러온 모듈(imglyRemoveBackground)을 실행합니다.
+                const imageBlob = await imglyRemoveBackground(file, config);
+
+                // 결과 이미지를 URL로 변환하여 적용
+                currentProcessedObjectURL = URL.createObjectURL(imageBlob);
+                resultImg.src = currentProcessedObjectURL;
+
+                downloadBtn.onclick = () => {
+                    const originalName = file.name.replace(/\.[^/.]+$/, ""); // 확장자 제거
+                    const a = document.createElement('a');
+                    a.href = currentProcessedObjectURL;
+                    a.download = `${originalName}_nukki_hd.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                };
+
+                // 처리 완료 UI 표시
+                loadingState.classList.add('hidden');
+                resultZone.classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Background removal error:", error);
+                loadingState.classList.add('hidden');
+                uploadZone.classList.remove('hidden');
+                showError(`이미지 처리 중 문제가 발생했습니다: ${error.message || '알 수 없는 오류'}`);
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorState.classList.remove('hidden');
+        }
     </script>
 </body>
 </html>
